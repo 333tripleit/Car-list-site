@@ -3,17 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Border Cars | Lithuania-Belarus Availability</title>
+    <title>Доступные Авто | Авто в наличии на границе Литва-Беларусь</title>
     <link rel="stylesheet" href="/css/styles.css" />
   </head>
   <body>
     <header class="site-header">
       <div class="container header-content">
         <div>
-          <p class="eyebrow">Car availability status</p>
-          <h1>Cars on the Lithuania-Belarus border</h1>
+          <p class="eyebrow">Авто в наличии</p>
+          <h1>Авто на границе Литва-Беларусь</h1>
         </div>
-        <a class="button ghost" href="/admin">Admin panel</a>
+        <a class="button ghost" href="/admin">Панель администратора</a>
       </div>
     </header>
 
@@ -22,54 +22,54 @@
         <h2>Filters</h2>
         <form id="filterForm" class="filter-form">
           <label>
-            Brand
+            Марка
             <select id="brandFilter" name="brand">
-              <option value="">All brands</option>
+              <option value="">Все марки</option>
             </select>
           </label>
 
           <label>
-            Body type
+            Тип кузова
             <select id="bodyTypeFilter" name="bodyType">
-              <option value="">All body types</option>
+              <option value="">Все типы кузова</option>
             </select>
           </label>
 
           <label>
-            Fuel type
+            Тип топлива
             <select id="fuelTypeFilter" name="fuelType">
-              <option value="">All fuel types</option>
+              <option value="">Все</option>
             </select>
           </label>
 
           <label>
-            Min horsepower
-            <input type="number" id="horsepowerMinFilter" name="horsepowerMin" min="0" placeholder="e.g. 150" />
+            Минимальные л.с.
+            <input type="number" id="horsepowerMinFilter" name="horsepowerMin" min="0" placeholder="пример: 150" />
           </label>
 
           <label>
-            Max horsepower
-            <input type="number" id="horsepowerMaxFilter" name="horsepowerMax" min="0" placeholder="e.g. 350" />
+            Максимальные л.с.
+            <input type="number" id="horsepowerMaxFilter" name="horsepowerMax" min="0" placeholder="пример: 350" />
           </label>
 
           <label>
-            Year from
+            Год выпуска от
             <input type="number" id="yearMinFilter" name="yearMin" min="1980" max="2030" />
           </label>
 
           <label>
-            Year to
+            Год выпуска до
             <input type="number" id="yearMaxFilter" name="yearMax" min="1980" max="2030" />
           </label>
 
-          <button type="reset" class="button secondary">Reset filters</button>
+          <button type="reset" class="button secondary">Сбросить фильтры</button>
         </form>
       </section>
 
       <section class="catalog" aria-live="polite">
         <div class="catalog-header">
-          <h2>Available catalog</h2>
-          <p id="catalogCount">0 cars</p>
+          <h2>Доступный каталог</h2>
+          <p id="catalogCount">0 машин</p>
         </div>
         <div id="carsGrid" class="cars-grid"></div>
       </section>

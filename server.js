@@ -69,7 +69,33 @@ function normalizeTelegramUrl(url) {
   if (!['t.me', 'telegram.me'].includes(parsed.hostname)) {
     throw new Error('Поддерживаются только ссылки на t.me');
   }
+
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (parts.length === 1 && parts[0] !== 's') {
+    // Allow one-link import from channel root by mapping to public feed.
+    parsed.pathname = `/s/${parts[0]}`;
+  }
+
+  parsed.search = '';
+  parsed.hash = '';
   return parsed.toString();
+}
+
+function getTelegramParts(sourceUrl) {
+  const parsed = new URL(sourceUrl);
+  const parts = parsed.pathname.split('/').filter(Boolean);
+
+  if (parts[0] === 's') {
+    return {
+      channel: parts[1] || '',
+      postId: parts[2] || '',
+    };
+  }
+
+  return {
+    channel: parts[0] || '',
+    postId: parts[1] || '',
+  };
 }
 
 async function loadTelegramPost(url) {
@@ -88,22 +114,24 @@ async function loadTelegramPost(url) {
 }
 
 function parseTelegramHtml(html, sourceUrl) {
-  const cleanText = extractPostText(html);
-  const photos = extractPhotoUrls(html).slice(0, 10);
+  const focusedHtml = extractTargetMessageHtml(html, sourceUrl);
+  const cleanText = extractPostText(focusedHtml || html);
+  const structuredText = extractStructuredSnippet(cleanText);
+  const photos = extractPhotoUrls(focusedHtml || html).slice(0, 10);
 
   const title =
-    find(cleanText, /🔥\s*([^🔥\n]+?)\s*🔥/i) ||
-    find(cleanText, /^([A-Za-zА-Яа-я0-9\- ]{3,60})/i) ||
+    find(structuredText, /🔥\s*([^🔥\n]+?)\s*🔥/i) ||
+    find(structuredText, /^([A-Za-zА-Яа-я0-9\- ]{3,60})/i) ||
     'Unknown model';
 
-  const year = Number(find(cleanText, /Год\s*[:]?\s*(\d{4})/i)) || null;
-  const mileage = toNumber(find(cleanText, /Пробег[^\d]*(\d[\d\s\u00A0]{2,})\s*км/i));
-  const horsepower = toNumber(find(cleanText, /(\d{2,4})\s*л\.?\s*с\.?/i));
-  const bodyType = detectBodyType(cleanText);
-  const fuelType = detectFuelType(cleanText);
-  const drive = find(cleanText, /Привод\s*[:]?\s*([^\n]+)/i) || '';
-  const transmission = find(cleanText, /Коробка\s*[:]?\s*([^\n]+)/i) || '';
-  const engine = find(cleanText, /Двигатель\s*[:]?\s*([^\n]+)/i) || '';
+  const year = Number(find(structuredText, /Год\s*[:]?\s*(\d{4})/i)) || null;
+  const mileage = toNumber(find(structuredText, /Пробег[^\d]*(\d[\d\s\u00A0]{2,})\s*км/i));
+  const horsepower = toNumber(find(structuredText, /(\d{2,4})\s*л\.?\s*с\.?/i));
+  const bodyType = detectBodyType(structuredText);
+  const fuelType = detectFuelType(structuredText);
+  const drive = find(structuredText, /Привод\s*[:]?\s*([^\n]+)/i) || '';
+  const transmission = find(structuredText, /Коробка\s*[:]?\s*([^\n]+)/i) || '';
+  const engine = find(structuredText, /Двигатель\s*[:]?\s*([^\n]+)/i) || '';
 
   const normalizedTitle = title.replace(/\s+/g, ' ').trim();
   const [brand = 'Unknown', ...modelParts] = normalizedTitle.replace(/\//g, ' / ').split(/\s+/);
@@ -124,9 +152,42 @@ function parseTelegramHtml(html, sourceUrl) {
     transmission: transmission.trim(),
     engine: engine.trim(),
     status: 'On the Lithuania-Belarus border',
-    description: cleanText,
+    description: structuredText || cleanText,
     photos,
   };
+}
+
+function extractTargetMessageHtml(html, sourceUrl) {
+  const { channel, postId } = getTelegramParts(sourceUrl);
+  const postKey = channel && postId ? `data-post="${channel}/${postId}"` : '';
+  const anchor = postKey ? html.indexOf(postKey) : html.indexOf('data-post="');
+
+  if (anchor < 0) return html;
+
+  const start = Math.max(0, anchor - 15000);
+  const end = Math.min(html.length, anchor + 30000);
+  return html.slice(start, end);
+}
+
+function extractStructuredSnippet(text) {
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) return text;
+
+  const stopPattern = /^(🇷🇺|📱|Telegram:|Доставка|Цена\s)/i;
+  const requiredPattern = /(🔥|Год|Пробег|Двигатель|л\.\s*с|Привод|Коробка)/i;
+
+  const result = [];
+  for (const line of lines) {
+    if (stopPattern.test(line) && result.length) break;
+    result.push(line);
+  }
+
+  const meaningful = result.filter((line) => requiredPattern.test(line));
+  return (meaningful.length ? result : lines).join('\n').trim();
 }
 
 function extractPostText(html) {
@@ -204,6 +265,7 @@ function extractPhotoUrls(html) {
   const urls = new Set();
   const styleRegex = /background-image:url\('([^']+)'\)/g;
   let match;
+
   while ((match = styleRegex.exec(html)) !== null) {
     urls.add(match[1].replace(/\\/g, ''));
   }
@@ -252,30 +314,29 @@ async function parseLinks(links) {
   const validLinks = links.map((link) => normalizeTelegramUrl(link.trim())).filter(Boolean);
   const cars = await Promise.allSettled(validLinks.map((link) => loadTelegramPost(link)));
 
-  return cars
-    .map((result, index) => {
-      if (result.status === 'fulfilled') return result.value;
-      return {
-        id: `error-${index}`,
-        sourceUrl: validLinks[index],
-        brand: 'Ошибка загрузки',
-        model: '',
-        year: null,
-        price: null,
-        currency: 'EUR',
-        fuelType: 'Не указано',
-        horsepower: null,
-        bodyType: 'Не указано',
-        mileage: null,
-        drive: '',
-        transmission: '',
-        engine: '',
-        status: 'On the Lithuania-Belarus border',
-        description: result.reason.message,
-        photos: [],
-      };
-    })
-    .filter(Boolean);
+  return cars.map((result, index) => {
+    if (result.status === 'fulfilled') return result.value;
+
+    return {
+      id: `error-${index}`,
+      sourceUrl: validLinks[index],
+      brand: 'Ошибка загрузки',
+      model: '',
+      year: null,
+      price: null,
+      currency: 'EUR',
+      fuelType: 'Не указано',
+      horsepower: null,
+      bodyType: 'Не указано',
+      mileage: null,
+      drive: '',
+      transmission: '',
+      engine: '',
+      status: 'On the Lithuania-Belarus border',
+      description: result.reason.message,
+      photos: [],
+    };
+  });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -350,6 +411,6 @@ if (require.main === module) {
 
 module.exports = {
   parseTelegramHtml,
-  extractPostText,
+  extractStructuredSnippet,
   normalizeTelegramUrl,
 };

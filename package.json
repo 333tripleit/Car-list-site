@@ -1,0 +1,10 @@
+{
+  "name": "car-list-site",
+  "version": "1.0.0",
+  "description": "Minimal car availability catalog for Lithuania-Belarus border",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}

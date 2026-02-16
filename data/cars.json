@@ -1,0 +1,57 @@
+[
+  {
+    "id": "car-001",
+    "brand": "Toyota",
+    "model": "RAV4",
+    "year": 2021,
+    "price": 26800,
+    "currency": "EUR",
+    "fuelType": "Hybrid",
+    "horsepower": 218,
+    "bodyType": "SUV",
+    "mileage": 54500,
+    "status": "On the Lithuania-Belarus border",
+    "description": "Reliable hybrid SUV with all-wheel drive and modern safety package.",
+    "photos": [
+      "https://images.unsplash.com/photo-1563720223523-8a5a978f1d2b?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1514316454349-750a7fd3da3a?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1200&q=80"
+    ]
+  },
+  {
+    "id": "car-002",
+    "brand": "BMW",
+    "model": "530d",
+    "year": 2019,
+    "price": 31900,
+    "currency": "EUR",
+    "fuelType": "Diesel",
+    "horsepower": 265,
+    "bodyType": "Sedan",
+    "mileage": 88200,
+    "status": "On the Lithuania-Belarus border",
+    "description": "Comfortable executive sedan with adaptive suspension and premium interior.",
+    "photos": [
+      "https://images.unsplash.com/photo-1520050206274-a1ae44613e6d?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1200&q=80"
+    ]
+  },
+  {
+    "id": "car-003",
+    "brand": "Volkswagen",
+    "model": "Passat Variant",
+    "year": 2020,
+    "price": 22400,
+    "currency": "EUR",
+    "fuelType": "Petrol",
+    "horsepower": 190,
+    "bodyType": "Station wagon",
+    "mileage": 73400,
+    "status": "On the Lithuania-Belarus border",
+    "description": "Practical station wagon with spacious trunk and efficient turbo engine.",
+    "photos": [
+      "https://images.unsplash.com/photo-1542362567-b07e54358753?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1553440569-bcc63803a83d?auto=format&fit=crop&w=1200&q=80"
+    ]
+  }
+]

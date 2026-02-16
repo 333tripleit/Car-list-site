@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin | Telegram import</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header compact">
+      <div class="container header-content">
+        <div>
+          <p class="eyebrow">Administration</p>
+          <h1>Импорт из Telegram</h1>
+        </div>
+        <a class="button ghost" href="/">Back to catalog</a>
+      </div>
+    </header>
+
+    <main class="container admin-layout">
+      <section class="panel">
+        <h2>Ссылки на посты</h2>
+        <p class="eyebrow">Одна ссылка на строку. Формат поддерживает посты публичного канала Telegram.</p>
+        <textarea id="linksField" rows="8" placeholder="https://t.me/channel/123"></textarea>
+
+        <div class="admin-actions">
+          <button id="parseBtn" class="button" type="button">Парсить посты</button>
+          <button id="saveBtn" class="button secondary" type="button">Сохранить ссылки</button>
+          <button id="exportBtn" class="button ghost" type="button">Экспорт JSON + фото URL</button>
+        </div>
+        <p id="adminMessage" class="status-text"></p>
+      </section>
+
+      <section>
+        <h2>Предпросмотр</h2>
+        <div id="previewGrid" class="cars-grid"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/js/admin.js"></script>
+  </body>
+</html>

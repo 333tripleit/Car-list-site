@@ -88,43 +88,99 @@ async function loadTelegramPost(url) {
 }
 
 function parseTelegramHtml(html, sourceUrl) {
-  const textBlockMatch = html.match(/<div class="tgme_widget_message_text[\s\S]*?<\/div>/);
-  const textBlock = textBlockMatch ? textBlockMatch[0] : '';
-  const cleanText = decodeHtml(stripTags(textBlock)).replace(/\s+/g, ' ').trim();
-
+  const cleanText = extractPostText(html);
   const photos = extractPhotoUrls(html).slice(0, 10);
 
-  const title = find(cleanText, /🔥\s*([^🔥\n]+?)\s*🔥/i) || find(cleanText, /^([^🌟\n]{3,40})/i) || 'Unknown model';
-  const year = Number(find(cleanText, /Год\s*(\d{4})/i)) || null;
-  const mileage = toNumber(find(cleanText, /Пробег[:\s]*([\d\s]{2,})\s*км/i));
+  const title =
+    find(cleanText, /🔥\s*([^🔥\n]+?)\s*🔥/i) ||
+    find(cleanText, /^([A-Za-zА-Яа-я0-9\- ]{3,60})/i) ||
+    'Unknown model';
+
+  const year = Number(find(cleanText, /Год\s*[:]?\s*(\d{4})/i)) || null;
+  const mileage = toNumber(find(cleanText, /Пробег[^\d]*(\d[\d\s\u00A0]{2,})\s*км/i));
   const horsepower = toNumber(find(cleanText, /(\d{2,4})\s*л\.?\s*с\.?/i));
   const bodyType = detectBodyType(cleanText);
   const fuelType = detectFuelType(cleanText);
-  const drive = find(cleanText, /Привод[:\s]*([^🔧\n]+)/i)?.trim() || '';
-  const transmission = find(cleanText, /Коробка[:\s]*([^\n]+)/i)?.trim() || '';
-  const engine = find(cleanText, /Двигатель[:\s]*([^\n(]+)/i)?.trim() || '';
+  const drive = find(cleanText, /Привод\s*[:]?\s*([^\n]+)/i) || '';
+  const transmission = find(cleanText, /Коробка\s*[:]?\s*([^\n]+)/i) || '';
+  const engine = find(cleanText, /Двигатель\s*[:]?\s*([^\n]+)/i) || '';
 
-  const [brand, ...modelParts] = title.replace(/\//g, ' / ').split(' ');
+  const normalizedTitle = title.replace(/\s+/g, ' ').trim();
+  const [brand = 'Unknown', ...modelParts] = normalizedTitle.replace(/\//g, ' / ').split(/\s+/);
 
   return {
     id: hashCode(sourceUrl),
     sourceUrl,
-    brand: brand || 'Unknown',
-    model: modelParts.join(' ').trim() || title,
+    brand,
+    model: modelParts.join(' ').trim() || normalizedTitle,
     year,
     price: null,
     currency: 'EUR',
     fuelType: fuelType || engine || 'Не указано',
-    horsepower: horsepower || null,
+    horsepower,
     bodyType,
-    mileage: mileage || null,
-    drive,
-    transmission,
-    engine,
+    mileage,
+    drive: drive.trim(),
+    transmission: transmission.trim(),
+    engine: engine.trim(),
     status: 'On the Lithuania-Belarus border',
     description: cleanText,
     photos,
   };
+}
+
+function extractPostText(html) {
+  const candidates = [
+    extractMetaContent(html, 'og:description'),
+    extractMetaNameContent(html, 'description'),
+    ...extractAllMessageTextBlocks(html),
+  ]
+    .map((value) => decodeHtml(stripTags(value || '')))
+    .map((value) =>
+      value
+        .replace(/\u00A0/g, ' ')
+        .replace(/\r/g, '')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{2,}/g, '\n')
+        .trim(),
+    )
+    .filter(Boolean);
+
+  return candidates.sort((a, b) => b.length - a.length)[0] || '';
+}
+
+function extractAllMessageTextBlocks(html) {
+  const blocks = [];
+  const regex = /<div[^>]*class="[^"]*tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/gim;
+  let match;
+
+  while ((match = regex.exec(html)) !== null) {
+    blocks.push(match[1]);
+  }
+
+  return blocks;
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractMetaContent(html, property) {
+  const escaped = escapeRegex(property);
+  return (
+    find(html, new RegExp(`<meta[^>]*property="${escaped}"[^>]*content="([^"]*)"`, 'i')) ||
+    find(html, new RegExp(`<meta[^>]*content="([^"]*)"[^>]*property="${escaped}"`, 'i')) ||
+    ''
+  );
+}
+
+function extractMetaNameContent(html, name) {
+  const escaped = escapeRegex(name);
+  return (
+    find(html, new RegExp(`<meta[^>]*name="${escaped}"[^>]*content="([^"]*)"`, 'i')) ||
+    find(html, new RegExp(`<meta[^>]*content="([^"]*)"[^>]*name="${escaped}"`, 'i')) ||
+    ''
+  );
 }
 
 function stripTags(input) {
@@ -137,9 +193,11 @@ function decodeHtml(input) {
     '&amp;': '&',
     '&quot;': '"',
     '&#39;': "'",
+    '&lt;': '<',
+    '&gt;': '>',
   };
 
-  return input.replace(/&nbsp;|&amp;|&quot;|&#39;/g, (entity) => entities[entity] || entity);
+  return input.replace(/&nbsp;|&amp;|&quot;|&#39;|&lt;|&gt;/g, (entity) => entities[entity] || entity);
 }
 
 function extractPhotoUrls(html) {
@@ -284,6 +342,14 @@ const server = http.createServer(async (req, res) => {
   await sendFile(res, url);
 });
 
-server.listen(PORT, () => {
-  console.log(`Server started on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`Server started on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = {
+  parseTelegramHtml,
+  extractPostText,
+  normalizeTelegramUrl,
+};

@@ -91,7 +91,7 @@ function getTelegramParts(sourceUrl) {
   return { channel: parts[0] || '', postId: parts[1] || '' };
 }
 
-async function loadTelegramPost(url) {
+async function fetchTelegramHtml(url) {
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; CarCatalogBot/1.0)',
@@ -102,8 +102,19 @@ async function loadTelegramPost(url) {
     throw new Error(`Не удалось загрузить пост: ${response.status}`);
   }
 
-  const html = await response.text();
-  return parseTelegramHtml(html, url);
+  return response.text();
+}
+
+async function loadTelegramPost(url) {
+  const sourceHtml = await fetchTelegramHtml(url);
+  const parsed = parseTelegramHtml(sourceHtml, url);
+  const albumPhotos = await collectRangeAlbumPhotos(url, sourceHtml);
+
+  if (albumPhotos.length) {
+    parsed.photos = albumPhotos.slice(0, 10);
+  }
+
+  return parsed;
 }
 
 function parseTelegramHtml(html, sourceUrl) {
@@ -246,6 +257,61 @@ function getNumericPostId(postId) {
   const value = Number(postId);
   return Number.isInteger(value) && value > 0 ? value : null;
 }
+async function collectRangeAlbumPhotos(sourceUrl, sourceHtml) {
+  const { channel, postId } = getTelegramParts(sourceUrl);
+  const startPostId = getNumericPostId(postId);
+
+  if (!channel || !startPostId) {
+    return extractPhotoUrls(sourceHtml).slice(0, 10);
+  }
+
+  const sourceDateTime = extractTargetDateTime(sourceHtml, sourceUrl);
+  const sourceDateKey = normalizeDateTimeKey(sourceDateTime);
+  const urls = new Set();
+
+  for (let id = startPostId; id <= startPostId + 9; id += 1) {
+    const candidateUrl = `https://t.me/s/${channel}/${id}`;
+
+    try {
+      const candidateHtml = id === startPostId ? sourceHtml : await fetchTelegramHtml(candidateUrl);
+      const candidateDateTime = extractTargetDateTime(candidateHtml, candidateUrl);
+      const candidateDateKey = normalizeDateTimeKey(candidateDateTime);
+
+      if (sourceDateKey && candidateDateKey && sourceDateKey !== candidateDateKey) {
+        continue;
+      }
+
+      extractTargetPhotos(candidateHtml, candidateUrl).forEach((photoUrl) => urls.add(photoUrl));
+    } catch {
+      // Ignore missing / inaccessible posts in the requested range.
+    }
+  }
+
+  return [...urls].slice(0, 10);
+}
+
+function extractTargetDateTime(html, sourceUrl) {
+  const entries = extractMessageEntries(html);
+  const index = findTargetEntryIndex(entries, sourceUrl);
+
+  if (index >= 0 && entries[index]) {
+    return entries[index].datetime;
+  }
+
+  return find(html, /<time[^>]*datetime="([^"]+)"/i) || '';
+}
+
+function extractTargetPhotos(html, sourceUrl) {
+  const entries = extractMessageEntries(html);
+  const index = findTargetEntryIndex(entries, sourceUrl);
+
+  if (index >= 0 && entries[index]) {
+    return entries[index].photos;
+  }
+
+  return extractPhotoUrls(html);
+}
+
 function normalizeDateTimeKey(value) {
   if (!value) return '';
   // Compare exact minute to bind "same date and time" posts/groups.
@@ -498,4 +564,5 @@ module.exports = {
   extractStructuredSnippet,
   extractMessageEntries,
   extractAlbumPhotoUrls,
+  collectRangeAlbumPhotos,
 };

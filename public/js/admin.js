@@ -29,7 +29,8 @@ parseBtn.addEventListener('click', async () => {
   try {
     parsedCars = await parseTelegramLinks(links);
     renderPreview(parsedCars);
-    adminMessage.textContent = `Готово. Обработано постов: ${parsedCars.length}`;
+    const checkedLinks = parsedCars.reduce((sum, car) => sum + (car.linkActions?.length || 0), 0);
+    adminMessage.textContent = `Готово. Обработано постов: ${parsedCars.length}. Проверено ссылок: ${checkedLinks}`;
   } catch (error) {
     adminMessage.textContent = error.message;
   }
@@ -84,6 +85,7 @@ function renderPreview(cars) {
           </div>
           <p class="car-price">${car.price ? formatPrice(car) : 'Цена не указана'}</p>
           <a class="button ghost" href="${car.sourceUrl}" target="_blank" rel="noreferrer">Открыть пост</a>
+          <p class="eyebrow">Проверок ссылок: ${car.linkActions?.length || 0}</p>
         </div>
       </article>
     `,

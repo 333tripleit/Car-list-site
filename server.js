@@ -108,12 +108,13 @@ async function fetchTelegramHtml(url) {
 async function loadTelegramPost(url) {
   const sourceHtml = await fetchTelegramHtml(url);
   const parsed = parseTelegramHtml(sourceHtml, url);
-  const albumPhotos = await collectRangeAlbumPhotos(url, sourceHtml);
+  const albumResult = await collectRangeAlbumPhotos(url, sourceHtml);
 
-  if (albumPhotos.length) {
-    parsed.photos = albumPhotos.slice(0, 10);
+  if (albumResult.photos.length) {
+    parsed.photos = albumResult.photos.slice(0, 10);
   }
 
+  parsed.linkActions = albumResult.actions;
   return parsed;
 }
 
@@ -260,9 +261,19 @@ function getNumericPostId(postId) {
 async function collectRangeAlbumPhotos(sourceUrl, sourceHtml) {
   const { channel, postId } = getTelegramParts(sourceUrl);
   const startPostId = getNumericPostId(postId);
+  const actions = [];
 
   if (!channel || !startPostId) {
-    return extractPhotoUrls(sourceHtml).slice(0, 10);
+    return {
+      photos: extractPhotoUrls(sourceHtml).slice(0, 10),
+      actions: [
+        {
+          url: sourceUrl,
+          status: 'fallback',
+          reason: 'source link has no numeric post id, used only source page',
+        },
+      ],
+    };
   }
 
   const sourceDateTime = extractTargetDateTime(sourceHtml, sourceUrl);
@@ -278,16 +289,35 @@ async function collectRangeAlbumPhotos(sourceUrl, sourceHtml) {
       const candidateDateKey = normalizeDateTimeKey(candidateDateTime);
 
       if (sourceDateKey && candidateDateKey && sourceDateKey !== candidateDateKey) {
+        actions.push({
+          url: candidateUrl,
+          status: 'skipped',
+          reason: `datetime mismatch: source=${sourceDateKey}, candidate=${candidateDateKey}`,
+        });
         continue;
       }
 
-      extractTargetPhotos(candidateHtml, candidateUrl).forEach((photoUrl) => urls.add(photoUrl));
-    } catch {
-      // Ignore missing / inaccessible posts in the requested range.
+      const candidatePhotos = extractTargetPhotos(candidateHtml, candidateUrl);
+      candidatePhotos.forEach((photoUrl) => urls.add(photoUrl));
+      actions.push({
+        url: candidateUrl,
+        status: 'included',
+        reason: `matched datetime ${candidateDateKey || 'n/a'}`,
+        photosFound: candidatePhotos.length,
+      });
+    } catch (error) {
+      actions.push({
+        url: candidateUrl,
+        status: 'error',
+        reason: error.message,
+      });
     }
   }
 
-  return [...urls].slice(0, 10);
+  return {
+    photos: [...urls].slice(0, 10),
+    actions,
+  };
 }
 
 function extractTargetDateTime(html, sourceUrl) {
@@ -484,6 +514,7 @@ async function parseLinks(links) {
       status: 'On the Lithuania-Belarus border',
       description: result.reason.message,
       photos: [],
+      linkActions: [],
     };
   });
 }

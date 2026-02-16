@@ -199,19 +199,39 @@ function extractAlbumPhotoUrls(entries, targetIndex, fullHtml) {
 
   const target = entries[targetIndex];
   const targetDateTimeKey = normalizeDateTimeKey(target.datetime);
+  const targetPostId = getNumericPostId(target.postId);
   const urls = new Set();
 
-  const maxForwardEntries = 10;
-  for (let offset = 0; offset < maxForwardEntries; offset += 1) {
-    const entry = entries[targetIndex + offset];
-    if (!entry) break;
+  if (targetPostId) {
+    // User-required rule: collect from current post id to +9 ids
+    // only when publication date+time key matches the original post.
+    const byPostId = new Map(entries.map((entry) => [getNumericPostId(entry.postId), entry]));
 
-    const entryDateTimeKey = normalizeDateTimeKey(entry.datetime);
-    if (offset > 0 && targetDateTimeKey && entryDateTimeKey !== targetDateTimeKey) {
-      break;
+    for (let postId = targetPostId; postId <= targetPostId + 9; postId += 1) {
+      const entry = byPostId.get(postId);
+      if (!entry) continue;
+
+      const entryDateTimeKey = normalizeDateTimeKey(entry.datetime);
+      if (targetDateTimeKey && entryDateTimeKey !== targetDateTimeKey) {
+        continue;
+      }
+
+      entry.photos.forEach((photoUrl) => urls.add(photoUrl));
     }
+  } else {
+    // Fallback for non-numeric ids: sequential forward scan.
+    const maxForwardEntries = 10;
+    for (let offset = 0; offset < maxForwardEntries; offset += 1) {
+      const entry = entries[targetIndex + offset];
+      if (!entry) break;
 
-    entry.photos.forEach((photoUrl) => urls.add(photoUrl));
+      const entryDateTimeKey = normalizeDateTimeKey(entry.datetime);
+      if (offset > 0 && targetDateTimeKey && entryDateTimeKey !== targetDateTimeKey) {
+        break;
+      }
+
+      entry.photos.forEach((photoUrl) => urls.add(photoUrl));
+    }
   }
 
   if (!urls.size) {
@@ -221,6 +241,11 @@ function extractAlbumPhotoUrls(entries, targetIndex, fullHtml) {
   return [...urls];
 }
 
+
+function getNumericPostId(postId) {
+  const value = Number(postId);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
 function normalizeDateTimeKey(value) {
   if (!value) return '';
   // Compare exact minute to bind "same date and time" posts/groups.

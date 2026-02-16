@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin | Add Car</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header compact">
+      <div class="container header-content">
+        <div>
+          <p class="eyebrow">Administration</p>
+          <h1>Add a new car</h1>
+        </div>
+        <a class="button ghost" href="/">Back to catalog</a>
+      </div>
+    </header>
+
+    <main class="container admin-layout">
+      <section class="panel">
+        <h2>Create listing</h2>
+        <form id="adminForm" class="admin-form">
+          <label>Brand<input required name="brand" type="text" /></label>
+          <label>Model<input required name="model" type="text" /></label>
+          <label>Year<input required name="year" type="number" min="1980" max="2030" /></label>
+          <label>Price (EUR)<input required name="price" type="number" min="1" step="100" /></label>
+          <label>Fuel type<input required name="fuelType" type="text" placeholder="Diesel / Petrol / Hybrid" /></label>
+          <label>Horsepower<input required name="horsepower" type="number" min="1" /></label>
+          <label>Body type<input required name="bodyType" type="text" placeholder="Sedan / SUV / Station wagon" /></label>
+          <label>Mileage (km)<input name="mileage" type="number" min="0" /></label>
+          <label>Description<textarea name="description" rows="4"></textarea></label>
+          <label>
+            Photo links (one URL per line, up to 10)
+            <textarea name="photosText" rows="6" required placeholder="https://...\nhttps://..."></textarea>
+          </label>
+
+          <button class="button" type="submit">Save car</button>
+        </form>
+        <p id="adminMessage" class="status-text"></p>
+      </section>
+    </main>
+
+    <script type="module" src="/js/admin.js"></script>
+  </body>
+</html>

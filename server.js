@@ -72,7 +72,6 @@ function normalizeTelegramUrl(url) {
 
   const parts = parsed.pathname.split('/').filter(Boolean);
   if (parts.length === 1 && parts[0] !== 's') {
-    // Allow one-link import from channel root by mapping to public feed.
     parsed.pathname = `/s/${parts[0]}`;
   }
 
@@ -86,16 +85,10 @@ function getTelegramParts(sourceUrl) {
   const parts = parsed.pathname.split('/').filter(Boolean);
 
   if (parts[0] === 's') {
-    return {
-      channel: parts[1] || '',
-      postId: parts[2] || '',
-    };
+    return { channel: parts[1] || '', postId: parts[2] || '' };
   }
 
-  return {
-    channel: parts[0] || '',
-    postId: parts[1] || '',
-  };
+  return { channel: parts[0] || '', postId: parts[1] || '' };
 }
 
 async function loadTelegramPost(url) {
@@ -114,10 +107,13 @@ async function loadTelegramPost(url) {
 }
 
 function parseTelegramHtml(html, sourceUrl) {
-  const focusedHtml = extractTargetMessageHtml(html, sourceUrl);
-  const cleanText = extractPostText(focusedHtml || html);
+  const entries = extractMessageEntries(html);
+  const targetIndex = findTargetEntryIndex(entries, sourceUrl);
+  const targetEntry = entries[targetIndex] || { html };
+
+  const cleanText = extractPostText(targetEntry.html || html);
   const structuredText = extractStructuredSnippet(cleanText);
-  const photos = extractPhotoUrls(focusedHtml || html).slice(0, 10);
+  const photos = extractAlbumPhotoUrls(entries, targetIndex, html).slice(0, 10);
 
   const title =
     find(structuredText, /🔥\s*([^🔥\n]+?)\s*🔥/i) ||
@@ -157,16 +153,78 @@ function parseTelegramHtml(html, sourceUrl) {
   };
 }
 
-function extractTargetMessageHtml(html, sourceUrl) {
+function findTargetEntryIndex(entries, sourceUrl) {
+  if (!entries.length) return -1;
+
   const { channel, postId } = getTelegramParts(sourceUrl);
-  const postKey = channel && postId ? `data-post="${channel}/${postId}"` : '';
-  const anchor = postKey ? html.indexOf(postKey) : html.indexOf('data-post="');
+  if (!postId) return 0;
 
-  if (anchor < 0) return html;
+  const postKey = `${channel}/${postId}`;
+  const exact = entries.findIndex((entry) => entry.dataPost === postKey);
+  if (exact >= 0) return exact;
 
-  const start = Math.max(0, anchor - 15000);
-  const end = Math.min(html.length, anchor + 30000);
-  return html.slice(start, end);
+  // Fallback for normalized or partial post ids.
+  const byPostId = entries.findIndex((entry) => entry.postId === postId);
+  return byPostId >= 0 ? byPostId : 0;
+}
+
+function extractMessageEntries(html) {
+  const entries = [];
+  const articleRegex = /<article[^>]*class="[^"]*tgme_widget_message_wrap[^"]*"[^>]*>[\s\S]*?<\/article>/gim;
+  let match;
+
+  while ((match = articleRegex.exec(html)) !== null) {
+    const articleHtml = match[0];
+    const dataPost = find(articleHtml, /data-post="([^"]+)"/i) || '';
+    const datetime = find(articleHtml, /<time[^>]*datetime="([^"]+)"/i) || '';
+    const postId = dataPost.split('/')[1] || '';
+    const photos = extractPhotoUrls(articleHtml);
+
+    entries.push({
+      html: articleHtml,
+      dataPost,
+      postId,
+      datetime,
+      photos,
+    });
+  }
+
+  return entries;
+}
+
+function extractAlbumPhotoUrls(entries, targetIndex, fullHtml) {
+  if (!entries.length || targetIndex < 0 || !entries[targetIndex]) {
+    return extractPhotoUrls(fullHtml);
+  }
+
+  const target = entries[targetIndex];
+  const targetDateTimeKey = normalizeDateTimeKey(target.datetime);
+  const urls = new Set();
+
+  const maxForwardEntries = 10;
+  for (let offset = 0; offset < maxForwardEntries; offset += 1) {
+    const entry = entries[targetIndex + offset];
+    if (!entry) break;
+
+    const entryDateTimeKey = normalizeDateTimeKey(entry.datetime);
+    if (offset > 0 && targetDateTimeKey && entryDateTimeKey !== targetDateTimeKey) {
+      break;
+    }
+
+    entry.photos.forEach((photoUrl) => urls.add(photoUrl));
+  }
+
+  if (!urls.size) {
+    return extractPhotoUrls(target.html || fullHtml);
+  }
+
+  return [...urls];
+}
+
+function normalizeDateTimeKey(value) {
+  if (!value) return '';
+  // Compare exact minute to bind "same date and time" posts/groups.
+  return String(value).slice(0, 16);
 }
 
 function extractStructuredSnippet(text) {
@@ -177,7 +235,7 @@ function extractStructuredSnippet(text) {
 
   if (!lines.length) return text;
 
-  const stopPattern = /^(🇷🇺|📱|Telegram:|Доставка|Цена\s)/i;
+  const stopPattern = /^(🇷🇺|📱|Telegram:|Доставка|Цена\s|💥|🔍)/i;
   const requiredPattern = /(🔥|Год|Пробег|Двигатель|л\.\s*с|Привод|Коробка)/i;
 
   const result = [];
@@ -411,6 +469,8 @@ if (require.main === module) {
 
 module.exports = {
   parseTelegramHtml,
-  extractStructuredSnippet,
   normalizeTelegramUrl,
+  extractStructuredSnippet,
+  extractMessageEntries,
+  extractAlbumPhotoUrls,
 };
